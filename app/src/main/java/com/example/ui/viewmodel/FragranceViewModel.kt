@@ -163,6 +163,14 @@ class FragranceViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    // Update Bottle
+    fun updateBottle(bottle: Bottle) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertBottle(bottle)
+            showToast("Saved changes: ${bottle.name}")
+        }
+    }
+
     // Add usage log
     fun logSprays(bottleId: Int, sprays: Int, date: String, notes: String) {
         viewModelScope.launch(Dispatchers.IO) {

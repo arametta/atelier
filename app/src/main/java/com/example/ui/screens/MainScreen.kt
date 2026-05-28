@@ -49,6 +49,20 @@ import kotlinx.coroutines.flow.collectLatest
 import java.text.SimpleDateFormat
 import java.util.*
 
+// Helper to get currency symbol based on locale and fallback mapping
+fun getCurrencySymbol(currencyCode: String): String {
+    val currencySymbols = mapOf(
+        "USD" to "$", "EUR" to "€", "GBP" to "£", "AED" to "د.إ", "CHF" to "Fr",
+        "JPY" to "¥", "CNY" to "¥", "INR" to "₹", "CAD" to "CA$", "AUD" to "A$"
+    )
+    val upper = currencyCode.uppercase(Locale.getDefault())
+    return currencySymbols[upper] ?: try {
+        java.util.Currency.getInstance(upper).getSymbol(Locale.getDefault())
+    } catch (e: Exception) {
+        currencyCode
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun MainScreen(viewModel: FragranceViewModel) {
@@ -57,6 +71,8 @@ fun MainScreen(viewModel: FragranceViewModel) {
     val showAddModal by viewModel.showAddBottleModal.collectAsStateWithLifecycle()
     val showLogModalForBottle by viewModel.showLogSprayModal.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    var selectedBottleForDetail by remember { mutableStateOf<BottleWithLogs?>(null) }
 
     // Handle toast state
     var activeToastMessage by remember { mutableStateOf<String?>(null) }
@@ -94,7 +110,7 @@ fun MainScreen(viewModel: FragranceViewModel) {
                     "collection" -> CollectionTab(
                         bottles = bottleDetails,
                         onLogSprayClick = { viewModel.showLogSprayModal.value = it.bottle },
-                        onDeleteClick = { viewModel.deleteBottle(it.bottle.id, it.bottle.name) }
+                        onPerfumeClick = { selectedBottleForDetail = it }
                     )
                     "analytics" -> AnalyticsTab(
                         bottles = bottleDetails
@@ -137,6 +153,15 @@ fun MainScreen(viewModel: FragranceViewModel) {
             onConfirmLog = { sprays, date, notes ->
                 viewModel.logSprays(bottle.id, sprays, date, notes)
             }
+        )
+    }
+
+    // Detail & Editing Sheet Overlay
+    selectedBottleForDetail?.let { detailItem ->
+        PerfumeDetailScreen(
+            item = detailItem,
+            viewModel = viewModel,
+            onDismiss = { selectedBottleForDetail = null }
         )
     }
 }
@@ -282,7 +307,7 @@ fun SuccessToast(message: String) {
 fun CollectionTab(
     bottles: List<BottleWithLogs>,
     onLogSprayClick: (BottleWithLogs) -> Unit,
-    onDeleteClick: (BottleWithLogs) -> Unit
+    onPerfumeClick: (BottleWithLogs) -> Unit
 ) {
     if (bottles.isEmpty()) {
         Box(
@@ -377,7 +402,7 @@ fun CollectionTab(
                 CollectionCard(
                     item = item,
                     onLogSprayClick = { onLogSprayClick(item) },
-                    onDeleteClick = { onDeleteClick(item) }
+                    onCardClick = { onPerfumeClick(item) }
                 )
             }
         }
@@ -389,10 +414,8 @@ fun CollectionTab(
 fun CollectionCard(
     item: BottleWithLogs,
     onLogSprayClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    onCardClick: () -> Unit
 ) {
-    var isExpanded by remember { mutableStateOf(false) }
-
     Card(
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = CardLuxury),
@@ -400,6 +423,7 @@ fun CollectionCard(
             .fillMaxWidth()
             .testTag("fragrance_card_${item.bottle.id}")
             .border(width = 0.5.dp, color = GoldAccent.copy(alpha = 0.10f), shape = RoundedCornerShape(24.dp))
+            .clickable { onCardClick() }
     ) {
         Column(
             modifier = Modifier
@@ -468,7 +492,7 @@ fun CollectionCard(
                     } else {
                         // Initials fallback
                         Text(
-                            text = item.bottle.house.take(1).uppercase(Locale.ROOT),
+                            text = item.bottle.house.take(1).uppercase(Locale.getDefault()),
                             color = GoldAccent.copy(alpha = 0.4f),
                             fontFamily = FontFamily.Serif,
                             fontSize = 44.sp,
@@ -482,7 +506,7 @@ fun CollectionCard(
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(
-                        text = item.bottle.house.uppercase(Locale.ROOT),
+                        text = item.bottle.house.uppercase(Locale.getDefault()),
                         color = MutedText,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -513,7 +537,7 @@ fun CollectionCard(
                             border = BorderStroke(0.5.dp, GoldAccent.copy(alpha = 0.2f))
                         ) {
                             Text(
-                                text = item.bottle.concentration.uppercase(Locale.ROOT),
+                                text = item.bottle.concentration.uppercase(Locale.getDefault()),
                                 color = GoldAccent,
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold,
@@ -540,8 +564,15 @@ fun CollectionCard(
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
+                    val sizeDisplay = when (item.bottle.sizeMl) {
+                        1 -> "Decant 1ml"
+                        2 -> "Decant 2ml"
+                        5 -> "Decant 5ml"
+                        10 -> "Decant 10ml"
+                        else -> "${item.bottle.sizeMl}ml"
+                    }
                     Text(
-                        text = "${item.bottle.family}  •  ${item.bottle.sizeMl}ml",
+                        text = "${item.bottle.family}  •  $sizeDisplay",
                         color = MutedText,
                         fontSize = 11.sp,
                         fontStyle = FontStyle.Italic
@@ -564,12 +595,6 @@ fun CollectionCard(
                         contentAlignment = Alignment.BottomCenter
                     ) {
                         val tubeHeight = 132.dp * (item.percentRemaining / 100.0).toFloat()
-                        val tubeColor = when {
-                            item.percentRemaining >= 50.0 -> GreenNormal
-                            item.percentRemaining >= 20.0 -> OrangeWarning
-                            else -> RedWarning
-                        }
-
                         Box(
                             modifier = Modifier
                                 .width(12.dp)
@@ -625,8 +650,7 @@ fun CollectionCard(
                         )
                     }
 
-                    val currencySymbols = mapOf("USD" to "$", "EUR" to "€", "GBP" to "£", "AED" to "د.إ", "CHF" to "Fr")
-                    val symbol = currencySymbols[item.bottle.currency] ?: item.bottle.currency
+                    val symbol = getCurrencySymbol(item.bottle.currency)
                     val costFormatted = String.format("%.2f", item.costPerSpray)
                     Text(
                         text = "$symbol$costFormatted / SPRAY",
@@ -675,8 +699,7 @@ fun CollectionCard(
                 ) {
                     Text(text = "PAID", color = MutedText, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
                     Spacer(modifier = Modifier.height(4.dp))
-                    val currencySymbols = mapOf("USD" to "$", "EUR" to "€", "GBP" to "£", "AED" to "د.إ", "CHF" to "Fr")
-                    val symbol = currencySymbols[item.bottle.currency] ?: item.bottle.currency
+                    val symbol = getCurrencySymbol(item.bottle.currency)
                     Text(text = "$symbol${item.bottle.price.toInt()}", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
 
@@ -708,7 +731,7 @@ fun CollectionCard(
                     val lastUsedStr = item.lastUsedDate?.let { date ->
                         try {
                             val inFormat = SimpleDateFormat("yyyy-MM-dd", Locale.ROOT)
-                            val outFormat = SimpleDateFormat("MMM d", Locale.ROOT)
+                            val outFormat = SimpleDateFormat("MMM d", Locale.getDefault())
                             outFormat.format(inFormat.parse(date)!!)
                         } catch (e: Exception) {
                             date
@@ -727,158 +750,35 @@ fun CollectionCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Expandable Notes toggle row centered beautifully
-            Row(
+            // Main Primary Action Bottom Row (Log Spray taking full-width fraction)
+            val isEmpty = item.spraysRemaining <= 0
+            Button(
+                onClick = onLogSprayClick,
+                enabled = !isEmpty,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = GoldAccent,
+                    contentColor = BgLuxury,
+                    disabledContainerColor = SurfaceLuxury,
+                    disabledContentColor = MutedText
+                ),
+                shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { isExpanded = !isExpanded }
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
+                    .height(44.dp)
+                    .testTag("log_spray_button_${item.bottle.id}")
             ) {
-                Text(
-                    text = if (isExpanded) "Hide Olfactory Pyramids" else "View Olfactory Pyramids & Notes",
-                    color = GoldAccent,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 0.5.sp
-                )
-                Spacer(modifier = Modifier.width(4.dp))
                 Icon(
-                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    imageVector = Icons.Default.LocalFireDepartment,
                     contentDescription = null,
-                    tint = GoldAccent,
                     modifier = Modifier.size(16.dp)
                 )
-            }
-
-            // Expandable Content Panel with Custom Note Pills
-            AnimatedVisibility(
-                visible = isExpanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp, bottom = 8.dp)
-                ) {
-                    Divider(color = GoldAccent.copy(alpha = 0.15f), thickness = 0.5.dp)
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Olfactory Notes Structure
-                    NoteSubgroup(title = "Top Notes", notes = item.bottle.topNotes)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    NoteSubgroup(title = "Heart Notes", notes = item.bottle.middleNotes)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    NoteSubgroup(title = "Base Notes", notes = item.bottle.baseNotes)
-
-                    if (!item.bottle.perfumer.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Row(modifier = Modifier.fillMaxWidth()) {
-                            Text(text = "Perfumer: ", color = MutedText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            Text(text = item.bottle.perfumer, color = CreamText, fontSize = 11.sp)
-                        }
-                    }
-
-                    if (item.bottle.personalNotes.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(text = "Personal Notes:", color = MutedText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = item.bottle.personalNotes,
-                            color = CreamText,
-                            fontSize = 11.sp,
-                            lineHeight = 16.sp
-                        )
-                    }
-                }
-            }
-
-            // Description / Detail Snippet (Always-on Quote box if exists!)
-            if (item.bottle.description.isNotBlank()) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Box(
-                    modifier = Modifier
-                        .drawBehind {
-                            drawLine(
-                                color = GoldAccent.copy(alpha = 0.5f),
-                                start = androidx.compose.ui.geometry.Offset(0f, 0f),
-                                end = androidx.compose.ui.geometry.Offset(0f, size.height),
-                                strokeWidth = 2.dp.toPx()
-                            )
-                        }
-                        .padding(start = 12.dp, top = 2.dp, bottom = 2.dp)
-                ) {
-                    Text(
-                        text = item.bottle.description,
-                        color = CreamText.copy(alpha = 0.8f),
-                        fontStyle = FontStyle.Italic,
-                        fontSize = 11.sp,
-                        lineHeight = 16.sp
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Main Primary Actions Bottom Row (Log Spray taking full-width fraction, delete on right)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Log Spray button (Prominent Gold Accent, takes weight)
-                val isEmpty = item.spraysRemaining <= 0
-                Button(
-                    onClick = onLogSprayClick,
-                    enabled = !isEmpty,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = GoldAccent,
-                        contentColor = BgLuxury,
-                        disabledContainerColor = SurfaceLuxury,
-                        disabledContentColor = MutedText
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(44.dp)
-                        .testTag("log_spray_button_${item.bottle.id}")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.LocalFireDepartment,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = if (isEmpty) "EMPTY" else "LOG SPRAY",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
-                    )
-                }
-
-                // Delete Button (Red translucent outline / background block to match luxury design)
-                IconButton(
-                    onClick = onDeleteClick,
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF2C1518)) // elegant red-950/30 equivalent
-                        .border(
-                            width = 0.5.dp,
-                            color = RedWarning.copy(alpha = 0.2f),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Delete Bottle",
-                        tint = RedWarning,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = if (isEmpty) "EMPTY" else "LOG SPRAY",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
             }
         }
     }
@@ -941,9 +841,16 @@ fun AddBottleModal(
     // Picker Selection states (dialog anchors)
     var selectedConcentration by remember { mutableStateOf("EDP") }
     var selectedSizeMl by remember { mutableStateOf(100) }
-    var selectedCurrency by remember { mutableStateOf("USD") }
+    var selectedCurrency by remember {
+        val defaultCurrency = try {
+            java.util.Currency.getInstance(Locale.getDefault()).currencyCode
+        } catch (e: Exception) {
+            "EUR"
+        }
+        mutableStateOf(defaultCurrency)
+    }
     var selectedPurchaseDate by remember {
-        val format = SimpleDateFormat("yyyy-MM-dd", Locale.ROOT)
+        val format = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
         mutableStateOf(format.format(Date()))
     }
 
@@ -1145,6 +1052,65 @@ fun AddBottleModal(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
+
+                // Save and Cancel buttons moved here (right under the auto-fill card)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        border = BorderStroke(1.dp, GoldAccent),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldAccent),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                    ) {
+                        Text("Cancel", fontWeight = FontWeight.SemiBold)
+                    }
+
+                    Button(
+                        onClick = {
+                            val p = priceStr.toDoubleOrNull() ?: 0.0
+                            val ml = mlPerSprayStr.toDoubleOrNull() ?: 0.10
+                            val yr = yearStr.toIntOrNull()
+                            if (house.isNotBlank() && name.isNotBlank()) {
+                                viewModel.saveBottle(
+                                    house = house,
+                                    name = name,
+                                    concentration = selectedConcentration,
+                                    sizeMl = selectedSizeMl,
+                                    price = p,
+                                    currency = selectedCurrency,
+                                    purchaseDate = selectedPurchaseDate,
+                                    mlPerSpray = ml,
+                                    imageUrl = imageUrl,
+                                    topNotes = topNotes,
+                                    middleNotes = middleNotes,
+                                    baseNotes = baseNotes,
+                                    family = olfactoryFamily,
+                                    year = yr,
+                                    description = description,
+                                    perfumer = perfumer,
+                                    personalNotes = personalNotes
+                                )
+                            } else {
+                                viewModel.showToast("House and Name are required fields!")
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = GoldAccent, contentColor = BgLuxury),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier
+                            .weight(1.2f)
+                            .height(48.dp)
+                            .testTag("btn_save_bottle")
+                    ) {
+                        Text("Save Fragrance", fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
                 Divider(color = GoldAccent.copy(alpha = 0.15f))
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -1239,7 +1205,14 @@ fun AddBottleModal(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(text = "${selectedSizeMl}ml", color = CreamText, fontSize = 13.sp)
+                            val sizeDisplay = when (selectedSizeMl) {
+                                1 -> "Decant 1ml"
+                                2 -> "Decant 2ml"
+                                5 -> "Decant 5ml"
+                                10 -> "Decant 10ml"
+                                else -> "${selectedSizeMl}ml"
+                            }
+                            Text(text = sizeDisplay, color = CreamText, fontSize = 13.sp)
                             Icon(imageVector = Icons.Default.KeyboardArrowDown, contentDescription = null, tint = GoldAccent, modifier = Modifier.size(16.dp))
                         }
                     }
@@ -1522,63 +1495,6 @@ fun AddBottleModal(
                         .padding(bottom = 24.dp)
                         .testTag("input_personal_notes")
                 )
-
-                // Save button row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        border = BorderStroke(1.dp, GoldAccent),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldAccent),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp)
-                    ) {
-                        Text("Cancel", fontWeight = FontWeight.SemiBold)
-                    }
-
-                    Button(
-                        onClick = {
-                            val p = priceStr.toDoubleOrNull() ?: 0.0
-                            val ml = mlPerSprayStr.toDoubleOrNull() ?: 0.10
-                            val yr = yearStr.toIntOrNull()
-                            if (house.isNotBlank() && name.isNotBlank()) {
-                                viewModel.saveBottle(
-                                    house = house,
-                                    name = name,
-                                    concentration = selectedConcentration,
-                                    sizeMl = selectedSizeMl,
-                                    price = p,
-                                    currency = selectedCurrency,
-                                    purchaseDate = selectedPurchaseDate,
-                                    mlPerSpray = ml,
-                                    imageUrl = imageUrl,
-                                    topNotes = topNotes,
-                                    middleNotes = middleNotes,
-                                    baseNotes = baseNotes,
-                                    family = olfactoryFamily,
-                                    year = yr,
-                                    description = description,
-                                    perfumer = perfumer,
-                                    personalNotes = personalNotes
-                                )
-                            } else {
-                                viewModel.showToast("House and Name are required fields!")
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldAccent, contentColor = BgLuxury),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier
-                            .weight(1.2f)
-                            .height(48.dp)
-                            .testTag("btn_save_bottle")
-                    ) {
-                        Text("Save Fragrance", fontWeight = FontWeight.Bold)
-                    }
-                }
             }
         }
     }
@@ -1598,12 +1514,33 @@ fun AddBottleModal(
     }
 
     if (showSizePicker) {
+        val sizeOptions = listOf(
+            "Decant 1ml",
+            "Decant 2ml",
+            "Decant 5ml",
+            "Decant 10ml",
+            "30ml",
+            "50ml",
+            "60ml",
+            "75ml",
+            "100ml",
+            "125ml",
+            "150ml",
+            "200ml"
+        )
+        val selectedSizeLabel = when (selectedSizeMl) {
+            1 -> "Decant 1ml"
+            2 -> "Decant 2ml"
+            5 -> "Decant 5ml"
+            10 -> "Decant 10ml"
+            else -> "${selectedSizeMl}ml"
+        }
         CustomPickerOverlay(
             title = "Size (ml)",
-            options = listOf("30", "50", "75", "100", "125", "150", "200").map { "${it}ml" },
-            selectedValue = "${selectedSizeMl}ml",
+            options = sizeOptions,
+            selectedValue = selectedSizeLabel,
             onSelect = {
-                selectedSizeMl = it.replace("ml", "").toIntOrNull() ?: 100
+                selectedSizeMl = it.replace("Decant", "").replace("ml", "").trim().toIntOrNull() ?: 100
                 showSizePicker = false
             },
             onDismiss = { showSizePicker = false }
@@ -1611,9 +1548,23 @@ fun AddBottleModal(
     }
 
     if (showCurrencyPicker) {
+        val defaultCurrency = remember {
+            try {
+                java.util.Currency.getInstance(Locale.getDefault()).currencyCode
+            } catch (e: Exception) {
+                "EUR"
+            }
+        }
+        val currencyOptions = remember(defaultCurrency) {
+            val base = mutableListOf("USD", "EUR", "GBP", "AED", "CHF")
+            if (!base.contains(defaultCurrency)) {
+                base.add(defaultCurrency)
+            }
+            base
+        }
         CustomPickerOverlay(
             title = "Currency",
-            options = listOf("USD", "EUR", "GBP", "AED", "CHF"),
+            options = currencyOptions,
             selectedValue = selectedCurrency,
             onSelect = {
                 selectedCurrency = it
@@ -2075,7 +2026,7 @@ fun MonthlyUsageChart(
             // Obtain list of last 6 months in chronological order
             val calendar = Calendar.getInstance()
             val format = SimpleDateFormat("yyyy-MM", Locale.ROOT)
-            val monthLabelFormat = SimpleDateFormat("MMM", Locale.ROOT)
+            val monthLabelFormat = SimpleDateFormat("MMM", Locale.getDefault())
 
             val last6MonthsData = (0..5).reversed().map { offset ->
                 val cal = Calendar.getInstance()
