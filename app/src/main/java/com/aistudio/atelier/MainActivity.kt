@@ -1,13 +1,13 @@
-package com.example
+package com.aistudio.atelier
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import com.example.ui.screens.MainScreen
-import com.example.ui.theme.MyApplicationTheme
-import com.example.ui.viewmodel.FragranceViewModel
+import com.aistudio.atelier.ui.screens.MainScreen
+import com.aistudio.atelier.ui.theme.MyApplicationTheme
+import com.aistudio.atelier.ui.viewmodel.FragranceViewModel
 
 class MainActivity : ComponentActivity() {
     private val viewModel: FragranceViewModel by viewModels()

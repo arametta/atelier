@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.aistudio.atelier.ui.screens
 
 import android.app.DatePickerDialog
 import androidx.compose.animation.*
@@ -32,10 +32,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.example.data.database.Bottle
-import com.example.ui.theme.*
-import com.example.ui.viewmodel.BottleWithLogs
-import com.example.ui.viewmodel.FragranceViewModel
+import com.aistudio.atelier.data.database.Bottle
+import com.aistudio.atelier.ui.theme.*
+import com.aistudio.atelier.ui.viewmodel.BottleWithLogs
+import com.aistudio.atelier.ui.viewmodel.FragranceViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 

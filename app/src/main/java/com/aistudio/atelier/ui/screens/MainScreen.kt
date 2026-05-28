@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.aistudio.atelier.ui.screens
 
 import android.app.DatePickerDialog
 import androidx.compose.animation.*
@@ -37,13 +37,13 @@ import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.example.data.api.FragranceInfo
-import com.example.data.database.Bottle
-import com.example.data.database.LogEntity
-import com.example.ui.theme.*
-import com.example.ui.viewmodel.AutoFillState
-import com.example.ui.viewmodel.BottleWithLogs
-import com.example.ui.viewmodel.FragranceViewModel
+import com.aistudio.atelier.data.api.FragranceInfo
+import com.aistudio.atelier.data.database.Bottle
+import com.aistudio.atelier.data.database.LogEntity
+import com.aistudio.atelier.ui.theme.*
+import com.aistudio.atelier.ui.viewmodel.AutoFillState
+import com.aistudio.atelier.ui.viewmodel.BottleWithLogs
+import com.aistudio.atelier.ui.viewmodel.FragranceViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import java.text.SimpleDateFormat

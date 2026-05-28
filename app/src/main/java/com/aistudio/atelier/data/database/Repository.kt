@@ -1,4 +1,4 @@
-package com.example.data.database
+package com.aistudio.atelier.data.database
 
 import kotlinx.coroutines.flow.Flow
 

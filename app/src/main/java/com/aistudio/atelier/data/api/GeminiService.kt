@@ -1,4 +1,4 @@
-package com.example.data.api
+package com.aistudio.atelier.data.api
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
@@ -9,7 +9,7 @@ import retrofit2.http.Body
 import retrofit2.http.POST
 import retrofit2.http.Query
 import java.util.concurrent.TimeUnit
-import com.example.BuildConfig
+import com.aistudio.atelier.BuildConfig
 
 @JsonClass(generateAdapter = true)
 data class Part(
