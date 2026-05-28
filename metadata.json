@@ -1,0 +1,6 @@
+{
+  "name": "Atelier",
+  "description": "Personal fragrance collection tracker featuring a dark luxury aesthetic, Room database persistence, Gemini auto-fill details, beautiful analytics, and custom logging.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
