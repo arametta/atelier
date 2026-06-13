@@ -2,7 +2,9 @@
 <img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
 </div>
 
-# Run and deploy your AI Studio app
+# WIP: Run and deploy your AI Studio app
+
+Simple app to track a perfume collection. Created to test out AI Studio.
 
 This contains everything you need to run your app locally.
 
